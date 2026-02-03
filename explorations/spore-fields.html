@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spore Fields - Generative Art</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #0a0a12;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        canvas {
+            border: 1px solid #222;
+            box-shadow: 0 0 30px rgba(100, 150, 200, 0.3);
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #8899aa;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            line-height: 1.6;
+            max-width: 300px;
+        }
+        #info h3 {
+            margin: 0 0 10px 0;
+            color: #aaccff;
+        }
+        #info .hint {
+            margin-top: 10px;
+            font-style: italic;
+            color: #667788;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Spore Fields</h3>
+        <div>A living digital ecosystem</div>
+        <div class="hint">Watch spores drift through invisible currents, settling into colonies that grow, mature, and release new spores.</div>
+    </div>
+    <canvas id="canvas"></canvas>
+    
+    <script>
+        // ============================================
+        // SPORE FIELDS - Generative Art System
+        // Combining: Flow Fields + Particles + Cellular Automata
+        // ============================================
+        
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Canvas setup
+        const WIDTH = 1200;
+        const HEIGHT = 800;
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+        
+        // ============================================
+        // PERLIN NOISE IMPLEMENTATION
+        // ============================================
+        class PerlinNoise {
+            constructor() {
+                this.permutation = [];
+                for (let i = 0; i < 256; i++) {
+                    this.permutation[i] = i;
+                }
+                // Shuffle
+                for (let i = 255; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.permutation[i], this.permutation[j]] = 
+                    [this.permutation[j], this.permutation[i]];
+                }
+                // Duplicate
+                this.p = [...this.permutation, ...this.permutation];
+            }
+            
+            fade(t) {
+                return t * t * t * (t * (t * 6 - 15) + 10);
+            }
+            
+            lerp(t, a, b) {
+                return a + t * (b - a);
+            }
+            
+            grad(hash, x, y) {
+                const h = hash & 3;
+                const u = h < 2 ? x : y;
+                const v = h < 2 ? y : x;
+                return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+            }
+            
+            noise(x, y) {
+                const X = Math.floor(x) & 255;
+                const Y = Math.floor(y) & 255;
+                
+                x -= Math.floor(x);
+                y -= Math.floor(y);
+                
+                const u = this.fade(x);
+                const v = this.fade(y);
+                
+                const a = this.p[X] + Y;
+                const aa = this.p[a];
+                const ab = this.p[a + 1];
+                const b = this.p[X + 1] + Y;
+                const ba = this.p[b];
+                const bb = this.p[b + 1];
+                
+                return this.lerp(v,
+                    this.lerp(u, this.grad(this.p[aa], x, y), 
+                                  this.grad(this.p[ba], x - 1, y)),
+                    this.lerp(u, this.grad(this.p[ab], x, y - 1),
+                                  this.grad(this.p[bb], x - 1, y - 1))
+                );
+            }
+        }
+        
+        const perlin = new PerlinNoise();
+        
+        // ============================================
+        // FLOW FIELD
+        // ============================================
+        class FlowField {
+            constructor(resolution = 20) {
+                this.resolution = resolution;
+                this.cols = Math.ceil(WIDTH / resolution);
+                this.rows = Math.ceil(HEIGHT / resolution);
+                this.field = [];
+                this.time = 0;
+                this.generate();
+            }
+            
+            generate() {
+                const scale = 0.02;
+                const zOff = this.time * 0.0002;
+                
+                this.field = [];
+                for (let y = 0; y < this.rows; y++) {
+                    this.field[y] = [];
+                    for (let x = 0; x < this.cols; x++) {
+                        const angle = perlin.noise(x * scale, y * scale + zOff) * Math.PI * 4;
+                        this.field[y][x] = angle;
+                    }
+                }
+                this.time++;
+            }
+            
+            lookup(x, y) {
+                const col = Math.floor(x / this.resolution);
+                const row = Math.floor(y / this.resolution);
+                if (col >= 0 && col < this.cols && row >= 0 && row < this.rows) {
+                    return this.field[row][col];
+                }
+                return 0;
+            }
+        }
+        
+        // ============================================
+        // SPORE (Particle)
+        // ============================================
+        class Spore {
+            constructor(x, y, age = 0) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.age = age;
+                this.maxAge = 300 + Math.random() * 300;
+                this.settled = false;
+                this.size = 1.5 + Math.random() * 1;
+                this.hue = 180 + Math.random() * 60; // Blue-cyan range
+                this.settleChance = 0.001;
+            }
+            
+            update(flowField) {
+                if (this.settled) return;
+                
+                this.age++;
+                
+                // Follow flow field
+                const angle = flowField.lookup(this.x, this.y);
+                const force = 0.3;
+                this.vx += Math.cos(angle) * force;
+                this.vy += Math.sin(angle) * force;
+                
+                // Add slight random drift
+                this.vx += (Math.random() - 0.5) * 0.1;
+                this.vy += (Math.random() - 0.5) * 0.1;
+                
+                // Damping
+                this.vx *= 0.95;
+                this.vy *= 0.95;
+                
+                // Limit speed
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (speed > 2) {
+                    this.vx = (this.vx / speed) * 2;
+                    this.vy = (this.vy / speed) * 2;
+                }
+                
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Wrap edges
+                if (this.x < 0) this.x = WIDTH;
+                if (this.x > WIDTH) this.x = 0;
+                if (this.y < 0) this.y = HEIGHT;
+                if (this.y > HEIGHT) this.y = 0;
+                
+                // Chance to settle
+                if (Math.random() < this.settleChance && this.age > 50) {
+                    this.settled = true;
+                }
+            }
+            
+            draw(ctx, alpha = 1) {
+                if (this.settled) return;
+                
+                const lifeRatio = this.age / this.maxAge;
+                const fadeAlpha = Math.min(1, 1 - lifeRatio) * alpha;
+                
+                ctx.fillStyle = `hsla(${this.hue}, 70%, 60%, ${fadeAlpha * 0.8})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Glow
+                const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 3);
+                glow.addColorStop(0, `hsla(${this.hue}, 80%, 70%, ${fadeAlpha * 0.3})`);
+                glow.addColorStop(1, `hsla(${this.hue}, 80%, 70%, 0)`);
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            isDead() {
+                return this.age > this.maxAge && !this.settled;
+            }
+        }
+        
+        // ============================================
+        // COLONY (Cellular Automata)
+        // ============================================
+        class Colony {
+            constructor(x, y, hue) {
+                this.x = Math.floor(x);
+                this.y = Math.floor(y);
+                this.cells = new Set();
+                this.cells.add(`${this.x},${this.y}`);
+                this.age = 0;
+                this.maxAge = 500 + Math.random() * 500;
+                this.hue = hue;
+                this.growthRate = 0.15;
+                this.releaseSpores = false;
+            }
+            
+            grow() {
+                this.age++;
+                
+                // Growth phase
+                if (this.age < this.maxAge * 0.7 && Math.random() < this.growthRate) {
+                    const cellArray = Array.from(this.cells);
+                    const randomCell = cellArray[Math.floor(Math.random() * cellArray.length)];
+                    const [cx, cy] = randomCell.split(',').map(Number);
+                    
+                    // Try to grow in a random direction
+                    const dirs = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [1,1], [-1,1], [1,-1]];
+                    const dir = dirs[Math.floor(Math.random() * dirs.length)];
+                    const nx = cx + dir[0] * 2;
+                    const ny = cy + dir[1] * 2;
+                    
+                    if (nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT) {
+                        this.cells.add(`${nx},${ny}`);
+                    }
+                }
+                
+                // Mature phase - prepare to release spores
+                if (this.age > this.maxAge * 0.7 && this.age < this.maxAge * 0.9) {
+                    this.releaseSpores = true;
+                }
+                
+                // Decay phase
+                if (this.age > this.maxAge * 0.9) {
+                    this.releaseSpores = false;
+                    if (Math.random() < 0.05 && this.cells.size > 1) {
+                        const cellArray = Array.from(this.cells);
+                        const toRemove = cellArray[Math.floor(Math.random() * cellArray.length)];
+                        this.cells.delete(toRemove);
+                    }
+                }
+            }
+            
+            draw(ctx) {
+                const lifeRatio = this.age / this.maxAge;
+                let alpha, saturation;
+                
+                if (lifeRatio < 0.7) {
+                    // Growing
+                    alpha = Math.min(1, lifeRatio * 2);
+                    saturation = 60;
+                } else if (lifeRatio < 0.9) {
+                    // Mature
+                    alpha = 1;
+                    saturation = 70;
+                } else {
+                    // Decaying
+                    alpha = 1 - (lifeRatio - 0.9) * 10;
+                    saturation = 40;
+                }
+                
+                // Shift hue slightly over time
+                const currentHue = this.hue + lifeRatio * 30;
+                
+                this.cells.forEach(cell => {
+                    const [cx, cy] = cell.split(',').map(Number);
+                    
+                    // Main cell
+                    ctx.fillStyle = `hsla(${currentHue}, ${saturation}%, 50%, ${alpha * 0.6})`;
+                    ctx.fillRect(cx - 1, cy - 1, 3, 3);
+                    
+                    // Glow
+                    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 6);
+                    glow.addColorStop(0, `hsla(${currentHue}, 70%, 60%, ${alpha * 0.4})`);
+                    glow.addColorStop(1, `hsla(${currentHue}, 70%, 60%, 0)`);
+                    ctx.fillStyle = glow;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+            
+            isDead() {
+                return this.cells.size === 0 || this.age > this.maxAge;
+            }
+            
+            shouldReleaseSpore() {
+                return this.releaseSpores && Math.random() < 0.02;
+            }
+            
+            getRandomCell() {
+                const cellArray = Array.from(this.cells);
+                const randomCell = cellArray[Math.floor(Math.random() * cellArray.length)];
+                return randomCell.split(',').map(Number);
+            }
+        }
+        
+        // ============================================
+        // MAIN SYSTEM
+        // ============================================
+        const flowField = new FlowField(20);
+        const spores = [];
+        const colonies = [];
+        
+        // Initial spores
+        for (let i = 0; i < 80; i++) {
+            spores.push(new Spore(
+                Math.random() * WIDTH,
+                Math.random() * HEIGHT,
+                Math.random() * 200
+            ));
+        }
+        
+        // ============================================
+        // ANIMATION LOOP
+        // ============================================
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Subtle fade (creates trails)
+            ctx.fillStyle = 'rgba(10, 10, 18, 0.08)';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            
+            // Update flow field occasionally
+            if (Math.random() < 0.02) {
+                flowField.generate();
+            }
+            
+            // Update and draw spores
+            for (let i = spores.length - 1; i >= 0; i--) {
+                const spore = spores[i];
+                spore.update(flowField);
+                spore.draw(ctx);
+                
+                // If settled, create colony
+                if (spore.settled) {
+                    colonies.push(new Colony(spore.x, spore.y, spore.hue));
+                    spores.splice(i, 1);
+                }
+                
+                // Remove dead spores
+                if (spore.isDead()) {
+                    spores.splice(i, 1);
+                }
+            }
+            
+            // Update and draw colonies
+            for (let i = colonies.length - 1; i >= 0; i--) {
+                const colony = colonies[i];
+                colony.grow();
+                colony.draw(ctx);
+                
+                // Release spores from mature colonies
+                if (colony.shouldReleaseSpore()) {
+                    const [cx, cy] = colony.getRandomCell();
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 10 + Math.random() * 20;
+                    const newSpore = new Spore(
+                        cx + Math.cos(angle) * distance,
+                        cy + Math.sin(angle) * distance
+                    );
+                    newSpore.hue = colony.hue + (Math.random() - 0.5) * 20;
+                    spores.push(newSpore);
+                }
+                
+                // Remove dead colonies
+                if (colony.isDead()) {
+                    colonies.splice(i, 1);
+                }
+            }
+            
+            // Maintain population
+            if (spores.length < 60 && Math.random() < 0.1) {
+                spores.push(new Spore(
+                    Math.random() * WIDTH,
+                    Math.random() * HEIGHT
+                ));
+            }
+        }
+        
+        animate();
+    </script>
+</body>
+</html>

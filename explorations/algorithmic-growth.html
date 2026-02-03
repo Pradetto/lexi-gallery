@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algorithmic Growth - L-System Garden</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #0f0f18;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        canvas {
+            border: 1px solid #222;
+            box-shadow: 0 0 30px rgba(80, 200, 120, 0.2);
+        }
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #8899aa;
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px 16px;
+            border-radius: 4px;
+            line-height: 1.6;
+        }
+        #info .title {
+            color: #aaffcc;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div class="title">Algorithmic Growth</div>
+        L-System garden: F→FF+[+F-F-F]-[-F+F+F]<br>
+        <span style="color: #667788;">Each plant grows from the same rule</span>
+    </div>
+    <canvas id="canvas"></canvas>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const WIDTH = 1400;
+        const HEIGHT = 800;
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+        
+        // Clear to background
+        ctx.fillStyle = '#0f0f18';
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        
+        // ============================================
+        // L-SYSTEM ENGINE
+        // ============================================
+        class LSystem {
+            constructor(axiom, rules, angle) {
+                this.axiom = axiom;
+                this.rules = rules;
+                this.angle = angle;
+                this.sentence = axiom;
+            }
+            
+            generate(iterations) {
+                for (let i = 0; i < iterations; i++) {
+                    let next = '';
+                    for (let char of this.sentence) {
+                        next += this.rules[char] || char;
+                    }
+                    this.sentence = next;
+                }
+            }
+            
+            draw(ctx, x, y, length, angle, startAngle = -90) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(startAngle * Math.PI / 180);
+                
+                const stack = [];
+                
+                for (let char of this.sentence) {
+                    if (char === 'F') {
+                        // Draw forward
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        ctx.lineTo(0, -length);
+                        ctx.stroke();
+                        ctx.translate(0, -length);
+                    } else if (char === '+') {
+                        // Turn right
+                        ctx.rotate(angle * Math.PI / 180);
+                    } else if (char === '-') {
+                        // Turn left
+                        ctx.rotate(-angle * Math.PI / 180);
+                    } else if (char === '[') {
+                        // Push state
+                        stack.push({
+                            x: ctx.getTransform().e,
+                            y: ctx.getTransform().f,
+                            angle: Math.atan2(ctx.getTransform().b, ctx.getTransform().a)
+                        });
+                        ctx.save();
+                    } else if (char === ']') {
+                        // Pop state
+                        ctx.restore();
+                        stack.pop();
+                    }
+                }
+                
+                ctx.restore();
+            }
+        }
+        
+        // ============================================
+        // PLANT VARIATIONS
+        // ============================================
+        const plantTypes = [
+            // Bush-like
+            {
+                axiom: 'F',
+                rules: {'F': 'FF+[+F-F-F]-[-F+F+F]'},
+                angle: 22.5,
+                iterations: 4,
+                length: 4,
+                hue: 140,
+                name: 'Bush'
+            },
+            // Fern-like
+            {
+                axiom: 'X',
+                rules: {'X': 'F+[[X]-X]-F[-FX]+X', 'F': 'FF'},
+                angle: 25,
+                iterations: 5,
+                length: 3,
+                hue: 120,
+                name: 'Fern'
+            },
+            // Branching tree
+            {
+                axiom: 'F',
+                rules: {'F': 'F[+F]F[-F]F'},
+                angle: 25.7,
+                iterations: 5,
+                length: 3.5,
+                hue: 160,
+                name: 'Tree'
+            },
+            // Crystalline
+            {
+                axiom: 'F',
+                rules: {'F': 'F+F-F-F+F'},
+                angle: 90,
+                iterations: 4,
+                length: 3,
+                hue: 180,
+                name: 'Crystal'
+            },
+            // Organic brancher
+            {
+                axiom: 'F',
+                rules: {'F': 'FF+[+F-F]-[-F+F]'},
+                angle: 27,
+                iterations: 4,
+                length: 4.5,
+                hue: 100,
+                name: 'Organic'
+            }
+        ];
+        
+        // ============================================
+        // DRAW GARDEN
+        // ============================================
+        function drawGarden() {
+            const groundY = HEIGHT - 100;
+            
+            // Draw ground line
+            ctx.strokeStyle = 'rgba(100, 150, 120, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.lineTo(WIDTH, groundY);
+            ctx.stroke();
+            
+            // Plant multiple instances
+            const plantCount = 25;
+            const spacing = WIDTH / (plantCount + 1);
+            
+            for (let i = 0; i < plantCount; i++) {
+                const x = spacing * (i + 1) + (Math.random() - 0.5) * spacing * 0.3;
+                const plantType = plantTypes[Math.floor(Math.random() * plantTypes.length)];
+                
+                // Create L-system
+                const lsys = new LSystem(plantType.axiom, plantType.rules, plantType.angle);
+                lsys.generate(plantType.iterations);
+                
+                // Style
+                const hueVariation = (Math.random() - 0.5) * 30;
+                const hue = plantType.hue + hueVariation;
+                const alpha = 0.5 + Math.random() * 0.3;
+                const scale = 0.7 + Math.random() * 0.6;
+                
+                ctx.strokeStyle = `hsla(${hue}, 60%, 50%, ${alpha})`;
+                ctx.lineWidth = 0.8;
+                
+                // Add glow by drawing multiple times with decreasing alpha
+                for (let glow = 3; glow >= 1; glow--) {
+                    ctx.strokeStyle = `hsla(${hue}, 70%, 60%, ${alpha * 0.1 * glow})`;
+                    ctx.lineWidth = 1.5 * glow;
+                    lsys.draw(ctx, x, groundY, plantType.length * scale, plantType.angle);
+                }
+                
+                // Final crisp draw
+                ctx.strokeStyle = `hsla(${hue}, 65%, 55%, ${alpha})`;
+                ctx.lineWidth = 0.8;
+                lsys.draw(ctx, x, groundY, plantType.length * scale, plantType.angle);
+            }
+        }
+        
+        // ============================================
+        // ANIMATED GROWTH
+        // ============================================
+        let growthProgress = 0;
+        const growthSpeed = 0.003;
+        
+        function animate() {
+            if (growthProgress < 1) {
+                requestAnimationFrame(animate);
+                
+                growthProgress += growthSpeed;
+                if (growthProgress > 1) growthProgress = 1;
+                
+                // Redraw with current progress
+                ctx.fillStyle = '#0f0f18';
+                ctx.fillRect(0, 0, WIDTH, HEIGHT);
+                
+                // Temporarily modify draw to show growth
+                const originalStroke = ctx.stroke;
+                ctx.stroke = function() {
+                    if (Math.random() > growthProgress) return;
+                    originalStroke.call(ctx);
+                };
+                
+                drawGarden();
+                
+                ctx.stroke = originalStroke;
+            } else {
+                // Final complete draw
+                ctx.fillStyle = '#0f0f18';
+                ctx.fillRect(0, 0, WIDTH, HEIGHT);
+                drawGarden();
+            }
+        }
+        
+        animate();
+    </script>
+</body>
+</html>

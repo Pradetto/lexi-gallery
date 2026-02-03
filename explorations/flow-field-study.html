@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Field Study - Generative Art</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #0d0d15;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        canvas {
+            border: 1px solid #1a1a2e;
+            box-shadow: 0 0 40px rgba(120, 80, 200, 0.2);
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #8899aa;
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px;
+            border-radius: 4px;
+            line-height: 1.5;
+            max-width: 250px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        Flow Field Study<br>
+        <span style="color: #667788; font-size: 10px;">
+            10,000 particles following<br>
+            evolving noise currents
+        </span>
+    </div>
+    <canvas id="canvas"></canvas>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const WIDTH = 1000;
+        const HEIGHT = 1000;
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+        
+        // Simplified noise using Math.sin combinations
+        function noise(x, y, z = 0) {
+            return (
+                Math.sin(x * 0.8 + z) * 
+                Math.cos(y * 0.9 + z * 0.7) * 0.5 +
+                Math.sin(x * 1.3 - y * 1.1 + z * 0.5) * 0.3 +
+                Math.cos(x * 0.4 + y * 0.6 - z * 0.3) * 0.2
+            );
+        }
+        
+        class Particle {
+            constructor() {
+                this.reset();
+                this.history = [];
+                this.maxHistory = 40;
+            }
+            
+            reset() {
+                this.x = Math.random() * WIDTH;
+                this.y = Math.random() * HEIGHT;
+                this.vx = 0;
+                this.vy = 0;
+                this.speed = 0.8 + Math.random() * 0.4;
+                this.life = 0;
+                this.maxLife = 300 + Math.random() * 400;
+                this.hue = 250 + Math.random() * 40; // Purple-pink
+            }
+            
+            update(time) {
+                this.life++;
+                
+                // Look up flow field angle
+                const scale = 0.005;
+                const angle = noise(this.x * scale, this.y * scale, time * 0.001) * Math.PI * 3;
+                
+                // Apply force
+                this.vx += Math.cos(angle) * 0.2;
+                this.vy += Math.sin(angle) * 0.2;
+                
+                // Limit speed
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (speed > this.speed) {
+                    this.vx = (this.vx / speed) * this.speed;
+                    this.vy = (this.vy / speed) * this.speed;
+                }
+                
+                // Save history for trail
+                this.history.push({x: this.x, y: this.y});
+                if (this.history.length > this.maxHistory) {
+                    this.history.shift();
+                }
+                
+                // Move
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Wrap edges
+                if (this.x < 0) {
+                    this.x = WIDTH;
+                    this.history = [];
+                }
+                if (this.x > WIDTH) {
+                    this.x = 0;
+                    this.history = [];
+                }
+                if (this.y < 0) {
+                    this.y = HEIGHT;
+                    this.history = [];
+                }
+                if (this.y > HEIGHT) {
+                    this.y = 0;
+                    this.history = [];
+                }
+                
+                // Reset if too old
+                if (this.life > this.maxLife) {
+                    this.reset();
+                    this.history = [];
+                }
+            }
+            
+            draw(ctx) {
+                const lifeRatio = Math.min(1, this.life / 100);
+                const deathRatio = Math.max(0, 1 - (this.life - (this.maxLife - 100)) / 100);
+                const alpha = Math.min(lifeRatio, deathRatio);
+                
+                // Draw trail
+                for (let i = 1; i < this.history.length; i++) {
+                    const h1 = this.history[i - 1];
+                    const h2 = this.history[i];
+                    const trailAlpha = (i / this.history.length) * alpha * 0.15;
+                    
+                    ctx.strokeStyle = `hsla(${this.hue}, 70%, 60%, ${trailAlpha})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(h1.x, h1.y);
+                    ctx.lineTo(h2.x, h2.y);
+                    ctx.stroke();
+                }
+                
+                // Draw current point with glow
+                const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 3);
+                glow.addColorStop(0, `hsla(${this.hue}, 80%, 70%, ${alpha * 0.8})`);
+                glow.addColorStop(0.5, `hsla(${this.hue}, 80%, 65%, ${alpha * 0.4})`);
+                glow.addColorStop(1, `hsla(${this.hue}, 80%, 60%, 0)`);
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // Create particles
+        const particles = [];
+        const particleCount = 10000;
+        for (let i = 0; i < particleCount; i++) {
+            const p = new Particle();
+            p.life = Math.random() * p.maxLife; // Stagger starts
+            particles.push(p);
+        }
+        
+        let time = 0;
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Very subtle fade
+            ctx.fillStyle = 'rgba(13, 13, 21, 0.03)';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            
+            time++;
+            
+            // Update and draw particles (sample for performance)
+            const drawEveryN = 1;
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update(time);
+                if (i % drawEveryN === 0) {
+                    particles[i].draw(ctx);
+                }
+            }
+        }
+        
+        // Initial black background
+        ctx.fillStyle = '#0d0d15';
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        
+        animate();
+    </script>
+</body>
+</html>
