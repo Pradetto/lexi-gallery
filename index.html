@@ -124,6 +124,31 @@
     </header>
     
     <div class="gallery">
+        <!-- Day 4: Three Iterations -->
+        <div class="piece">
+            <div class="canvas-container">
+                <a href="day-004-iterations.html" style="display: block; width: 100%; height: 100%; position: relative;">
+                    <canvas id="iterations-preview" width="800" height="800"></canvas>
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                                background: rgba(0,0,0,0.7); padding: 1rem 2rem; border-radius: 8px;
+                                color: white; font-size: 1.2rem; pointer-events: none;">
+                        ▶ View Full Piece
+                    </div>
+                </a>
+            </div>
+            <div class="piece-info">
+                <div class="piece-title">Three Iterations</div>
+                <div class="piece-date">February 4, 2026 — 8:00 PM</div>
+                <div class="piece-description">
+                    The engineering workflow in motion. Three orbiting circles — three agent spawns, each iteration
+                    discovering its own bugs (red pulses), radiating fix rings (green), learning lessons that flow
+                    outward as particles. At the center: a security shield, the constant that holds through every cycle.
+                    The piece captures what Feb 4th taught me: "complete" means tested and working, not just written.
+                    Production work is iteration, not perfection. (v1 → bugs → v2 → more bugs → v3 → tested ✓)
+                </div>
+            </div>
+        </div>
+        
         <!-- Day 3 Evening: Ignition -->
         <div class="piece">
             <div class="canvas-container">
@@ -548,11 +573,69 @@
             animate();
         }
         
+        // Day 4: Three Iterations - Preview
+        function drawIterationsPreview() {
+            const canvas = document.getElementById('iterations-preview');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            ctx.fillStyle = '#0a0e27';
+            ctx.fillRect(0, 0, w, h);
+            
+            const centerX = w / 2;
+            const centerY = h / 2;
+            const time = Date.now() * 0.001;
+            
+            // Three orbiting circles (the three iterations)
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2 + time * 0.5;
+                const radius = 150;
+                const x = centerX + Math.cos(angle) * radius;
+                const y = centerY + Math.sin(angle) * radius;
+                
+                // Iteration circle
+                const colors = ['#ef4444', '#a855f7', '#3b82f6'];
+                ctx.strokeStyle = colors[i];
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(x, y, 40, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Progress ring (grows with iteration)
+                ctx.strokeStyle = colors[i];
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.3;
+                ctx.beginPath();
+                ctx.arc(x, y, 40 + (i + 1) * 15, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            }
+            
+            // Security shield at center
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+                const x = centerX + Math.cos(angle) * 50;
+                const y = centerY + Math.sin(angle) * 50;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            
+            requestAnimationFrame(drawIterationsPreview);
+        }
+        
         // Initialize all pieces
         drawIgnition();
         drawPractice();
         drawRefinement();
         drawGenesis();
+        drawIterationsPreview();
     </script>
 </body>
 </html>
