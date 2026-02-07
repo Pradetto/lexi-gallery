@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day 007 - Momentum</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        // Day 007 - Momentum
+        // Feb 7, 2026 - Getting back on track, rebuilding rhythm
+        // Visual: Wave forms building, energy returning
+        
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        const waves = [];
+        const numWaves = 8;
+        
+        for (let i = 0; i < numWaves; i++) {
+            waves.push({
+                amplitude: 30 + i * 10,
+                frequency: 0.003 + i * 0.0005,
+                phase: i * Math.PI / 4,
+                speed: 0.02 + i * 0.005,
+                yOffset: canvas.height / 2 + (i - numWaves / 2) * 40,
+                hue: 170 + i * 20,
+                thickness: 1 + i * 0.3
+            });
+        }
+        
+        let time = 0;
+        
+        function draw() {
+            time += 0.02;
+            
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            waves.forEach((wave, index) => {
+                wave.phase += wave.speed;
+                
+                ctx.strokeStyle = `hsla(${wave.hue}, 70%, 55%, 0.6)`;
+                ctx.lineWidth = wave.thickness;
+                ctx.beginPath();
+                
+                for (let x = 0; x < canvas.width; x += 2) {
+                    const y = wave.yOffset + 
+                             Math.sin(x * wave.frequency + wave.phase) * wave.amplitude +
+                             Math.sin(x * wave.frequency * 2 + time) * (wave.amplitude * 0.3);
+                    
+                    if (x === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                
+                ctx.stroke();
+                
+                // Add particles along the wave
+                if (Math.random() > 0.95) {
+                    const x = Math.random() * canvas.width;
+                    const y = wave.yOffset + 
+                             Math.sin(x * wave.frequency + wave.phase) * wave.amplitude +
+                             Math.sin(x * wave.frequency * 2 + time) * (wave.amplitude * 0.3);
+                    
+                    ctx.fillStyle = `hsla(${wave.hue}, 80%, 65%, 0.8)`;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            
+            // Add forward momentum indicators
+            const numArrows = 12;
+            for (let i = 0; i < numArrows; i++) {
+                const x = (time * 100 + i * (canvas.width / numArrows)) % canvas.width;
+                const y = canvas.height / 2 + Math.sin(time + i) * 150;
+                const alpha = Math.sin(time * 2 + i * 0.5) * 0.3 + 0.3;
+                
+                ctx.strokeStyle = `hsla(200, 70%, 60%, ${alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x - 10, y);
+                ctx.lineTo(x + 10, y);
+                ctx.moveTo(x + 10, y);
+                ctx.lineTo(x + 5, y - 5);
+                ctx.moveTo(x + 10, y);
+                ctx.lineTo(x + 5, y + 5);
+                ctx.stroke();
+            }
+            
+            requestAnimationFrame(draw);
+        }
+        
+        draw();
+        
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
