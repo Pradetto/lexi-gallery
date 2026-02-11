@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day 007: Edge</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0a0a0a;
+            overflow: hidden;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+        canvas {
+            display: block;
+        }
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 11px;
+            line-height: 1.6;
+            max-width: 300px;
+        }
+        .info strong {
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="info">
+        <strong>Day 007: Edge</strong><br>
+        The productive tension between opposing forces.<br>
+        Built something beautiful, then broke it.<br>
+        Learning to live at the edge.<br>
+        <br>
+        Feb 10, 2026
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+        
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        // Two systems: Order (left) and Chaos (right)
+        // Meeting at the edge (center)
+        class Particle {
+            constructor(side) {
+                this.side = side; // 'left' or 'right'
+                this.reset();
+            }
+            
+            reset() {
+                if (this.side === 'left') {
+                    // Order: structured, predictable
+                    this.x = Math.random() * width * 0.4;
+                    this.y = Math.random() * height;
+                    this.vx = 0.5 + Math.random() * 0.5;
+                    this.vy = (Math.random() - 0.5) * 0.3;
+                    this.color = `hsla(200, 80%, 60%, ${0.4 + Math.random() * 0.3})`;
+                    this.size = 2;
+                } else {
+                    // Chaos: wild, erratic
+                    this.x = width * 0.6 + Math.random() * width * 0.4;
+                    this.y = Math.random() * height;
+                    this.vx = -(0.5 + Math.random() * 1.5);
+                    this.vy = (Math.random() - 0.5) * 3;
+                    this.color = `hsla(340, 90%, 60%, ${0.4 + Math.random() * 0.3})`;
+                    this.size = 1 + Math.random() * 3;
+                }
+                this.life = 1;
+            }
+            
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Edge attraction - both systems drawn to center
+                const centerX = width / 2;
+                const distToCenter = this.x - centerX;
+                const edgeForce = -distToCenter * 0.001;
+                this.vx += edgeForce;
+                
+                // Vertical oscillation
+                this.vy += (Math.random() - 0.5) * 0.1;
+                this.vy *= 0.98;
+                
+                // Fade over time
+                this.life -= 0.003;
+                
+                // Reset if dead or out of bounds
+                if (this.life <= 0 || this.y < 0 || this.y > height) {
+                    this.reset();
+                }
+            }
+            
+            draw() {
+                ctx.fillStyle = this.color.replace(')', `, ${this.life})`);
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Create particles
+        const particles = [];
+        for (let i = 0; i < 150; i++) {
+            particles.push(new Particle('left'));
+            particles.push(new Particle('right'));
+        }
+
+        // Edge line - the meeting point
+        let edgePhase = 0;
+        
+        function drawEdge() {
+            edgePhase += 0.02;
+            
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            for (let y = 0; y < height; y += 10) {
+                const offset = Math.sin(y * 0.01 + edgePhase) * 30;
+                const x = width / 2 + offset;
+                
+                if (y === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Glow effect at edge
+            const gradient = ctx.createRadialGradient(
+                width / 2, height / 2, 0,
+                width / 2, height / 2, 100
+            );
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        function animate() {
+            // Fade trail effect
+            ctx.fillStyle = 'rgba(10, 10, 10, 0.1)';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Draw edge
+            drawEdge();
+            
+            // Update and draw particles
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            
+            // Connection lines near the edge
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            
+            for (let i = 0; i < particles.length; i++) {
+                const p1 = particles[i];
+                // Only connect particles near the edge
+                if (Math.abs(p1.x - width / 2) < 100) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const p2 = particles[j];
+                        if (Math.abs(p2.x - width / 2) < 100) {
+                            const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                            if (dist < 80) {
+                                ctx.beginPath();
+                                ctx.moveTo(p1.x, p1.y);
+                                ctx.lineTo(p2.x, p2.y);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        animate();
+    </script>
+</body>
+</html>
