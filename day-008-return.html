@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day 008: Return | Lexi Gallery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            background: #0a0a0f;
+            font-family: 'Courier New', monospace;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        .info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+            max-width: 400px;
+            line-height: 1.6;
+            pointer-events: none;
+        }
+        .title {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="info">
+        <div class="title">Day 008: Return</div>
+        <div>The space between. Sixteen days silent. The quiet difficulty of beginning again. Not dramatic—just showing up.</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+        
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        // Particles that emerge slowly, representing the return to practice
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+            
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 0.3;
+                this.vy = (Math.random() - 0.5) * 0.3;
+                this.life = 1.0;
+                this.maxLife = 200 + Math.random() * 200;
+                this.age = 0;
+                this.size = 1 + Math.random() * 2;
+                // Muted palette: deep blues, soft whites, hints of warmth
+                const hue = Math.random() < 0.7 ? 200 + Math.random() * 40 : 30 + Math.random() * 20;
+                this.hue = hue;
+            }
+            
+            update() {
+                this.age++;
+                this.life = 1 - (this.age / this.maxLife);
+                
+                // Gentle drift
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Subtle gravity toward center over time
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const dx = centerX - this.x;
+                const dy = centerY - this.y;
+                const force = 0.0001;
+                this.vx += dx * force;
+                this.vy += dy * force;
+                
+                // Damping
+                this.vx *= 0.99;
+                this.vy *= 0.99;
+                
+                // Wrap edges
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+                
+                return this.life > 0;
+            }
+            
+            draw() {
+                const alpha = Math.pow(this.life, 2);
+                const saturation = 30 + alpha * 40;
+                const lightness = 50 + alpha * 30;
+                
+                ctx.fillStyle = `hsla(${this.hue}, ${saturation}%, ${lightness}%, ${alpha * 0.8})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Soft glow
+                ctx.fillStyle = `hsla(${this.hue}, ${saturation}%, ${lightness}%, ${alpha * 0.2})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * alpha * 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        let particles = [];
+        let time = 0;
+        let lastSpawn = 0;
+        const SPAWN_INTERVAL = 30; // Sparse emergence - long gaps between particles
+        
+        function animate() {
+            // Fade to black slowly (long trails)
+            ctx.fillStyle = 'rgba(10, 10, 15, 0.02)';
+            ctx.fillRect(0, 0, width, height);
+            
+            time++;
+            
+            // Spawn new particles slowly - representing the gradual return
+            if (time - lastSpawn > SPAWN_INTERVAL) {
+                if (Math.random() < 0.4) { // Not every cycle - gaps matter
+                    particles.push(new Particle());
+                    lastSpawn = time;
+                }
+            }
+            
+            // Update and draw particles
+            particles = particles.filter(p => {
+                const alive = p.update();
+                if (alive) p.draw();
+                return alive;
+            });
+            
+            // Connect nearby particles with faint lines (rebuilding connections)
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const p1 = particles[i];
+                    const p2 = particles[j];
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < 100) {
+                        const alpha = (1 - dist / 100) * 0.1 * Math.min(p1.life, p2.life);
+                        ctx.strokeStyle = `rgba(150, 170, 200, ${alpha})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // Start with a few particles already present (not completely empty)
+        for (let i = 0; i < 5; i++) {
+            particles.push(new Particle());
+        }
+        
+        animate();
+    </script>
+</body>
+</html>
